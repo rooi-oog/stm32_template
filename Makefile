@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------- #
-# Board
+# Boards
 
 # ST NUCLEO F401RE board
 #BOARD		:= NUCLEO_F401RE
@@ -8,24 +8,34 @@
 
 # STM32F4-Discovery board
 #BOARD		:= STM32F4_DISCOVERY
-#FPU			:= hard
+#FPU		:= hard
 #HSE_VALUE	:= 8000000
 
-# Made by mySelf STM32F103C8 board
-BOARD		:= STM32F1_MINIMAL
-FPU			:= 
+# Famous Blue pill STM32F103C8 board
+BOARD		:= STM32F1_BLUEPILL
+FPU			:= soft
 HSE_VALUE	:= 8000000
+
+# On-motor STM32F103C8 board
+#BOARD		:= STM32F1_ONMOTOR
+#FPU		:= soft
+#HSE_VALUE	:= 0
 
 # ------------------------------------------------------------------------------------------- #
 # MCU
 
 # ------------------------------------------------------ #
-ifeq ($(BOARD),STM32F1_MINIMAL)
+ifeq ($(BOARD),STM32F1_BLUEPILL)
 CPU			:= STM32F1
 MCPU		:= -mcpu=cortex-m3 -mfloat-abi=soft
 LDSCRIPT	:= -T "stm32f103x8.ld"
-OOCD_IF		?= cmsis_dap
- 
+OOCD_IF		?= stlink_v2
+# ------------------------------------------------------ #
+else ifeq ($(BOARD),STM32F1_ONMOTOR)
+CPU			:= STM32F1
+MCPU		:= -mcpu=cortex-m3 -mfloat-abi=soft
+LDSCRIPT	:= -T "stm32f103x8.ld"
+OOCD_IF		?= stlink_v2
 # ------------------------------------------------------ #
 else ifeq ($(BOARD),NUCLEO_F401RE)
 CPU			:= STM32F4
@@ -35,7 +45,6 @@ MCPU		+= -mfpu=fpv4-sp-d16
 endif
 LDSCRIPT	+= -T "stm32f401xe.ld"
 STLVER		?= stlink_v2.1
-
 # ------------------------------------------------------ #
 else ifeq ($(BOARD),STM32F4_DISCOVERY)
 CPU			:= STM32F4
@@ -53,7 +62,7 @@ cpu			:= $(shell echo $(CPU) | tr A-Z a-z)
 
 # ------------------------------------------------------------------------------------------- #
 # Programm name
-PROG_NAME	:= stm32_template
+PROG_NAME	:= stm32_tpl
 
 # where built files will be stored
 TARGET_DIR	:= build
@@ -66,7 +75,7 @@ OPENCM3_DIR	:= libopencm3
 OBJS		+= $(patsubst %.c, %.o, $(shell find -L src -type f -name "*.c"))
 
 # Optimization / debug flags
-OPT			:= -O2 # -Og -g3
+OPT			:= -O2 -g3
 
 # Common C and Linker flags
 FLAGS		:= $(MCPU) $(OPT) -mthumb -fmessage-length=0 -fsigned-char 
@@ -95,7 +104,7 @@ LD			:= $(PREFIX)gcc
 
 
 all: $(TARGET)	
-	# Get disassembled
+	# Make listing
 	$(PREFIX)objdump -d --wide $(TARGET_DIR)/$(TARGET) > $(TARGET_DIR)/$(PROG_NAME).asm
 	# ===========================================================================
 	# Memory usage
@@ -108,12 +117,13 @@ bin: $(TARGET)
 	
 # Upload firmware to MCU	
 pgm: $(TARGET)
-	openocd -f $(OOCD_IF).cfg -c "source [find target/$(cpu)x.cfg]" -c "program $(TARGET_DIR)/$(TARGET) verify reset exit"
+	openocd -f oocd/$(OOCD_IF).cfg -c "source [find target/$(cpu)x.cfg]" -c "program $(TARGET_DIR)/$(TARGET) verify reset exit"
 	
 # Start OpenOCD server	
 debug: $(TARGET)
-	openocd -f $(OOCD_IF).cfg -c "source [find target/$(cpu)x.cfg]"
+	openocd -f oocd/$(OOCD_IF).cfg -c "source [find target/$(cpu)x.cfg]"
 		
+# --- 
 	
 $(TARGET): $(OBJS)
 	@$(LD) $(LDFLAGS) -o $(TARGET_DIR)/$@ $^ $(LIBS)
@@ -124,10 +134,7 @@ $(TARGET): $(OBJS)
 clean:
 	@echo "Cleaning..."
 	@rm -rf $(OBJS)
-	@rm -rf $(TARGET_DIR)/$(TARGET)
-	@rm -rf $(TARGET_DIR)/$(PROG_NAME).map
-	@rm -rf $(TARGET_DIR)/$(PROG_NAME).bin
-	@rm -rf $(TARGET_DIR)/$(PROG_NAME).asm	
+	@rm -rf $(TARGET_DIR)/*
 	
 .PHONY:
 	all clean pgm debug
